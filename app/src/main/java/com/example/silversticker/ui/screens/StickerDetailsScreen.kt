@@ -56,6 +56,8 @@ import com.example.silversticker.models.Sticker
 import com.example.silversticker.models.StickerPack
 import com.example.silversticker.utils.ImageUtils
 import com.example.silversticker.utils.StickerStorage
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -347,6 +349,7 @@ fun StickerDetailsScreen(
                     onClick = {
                         onRemoveStickers(stickersToDelete)
                         showStickerDeleteDialog = null
+                        selectedSticker = null
                         selectedStickers = emptySet()
                         isSelectionMode = false
                     },
@@ -767,13 +770,28 @@ private fun StickerPreviewOverlay(
         label = "morph_alpha"
     )
     val offsetY by animateFloatAsState(
-        targetValue = if (isVisible) 0f else 80f,
+        targetValue = if (isVisible) 0f else 120f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioLowBouncy,
             stiffness = Spring.StiffnessMediumLow
         ),
         label = "slide_y"
     )
+    val rotation by animateFloatAsState(
+        targetValue = if (isVisible) 0f else -30f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "morph_rotation"
+    )
+
+    var lastActiveSticker by remember { mutableStateOf<Sticker?>(null) }
+    LaunchedEffect(sticker) {
+        if (sticker != null) {
+            lastActiveSticker = sticker
+        }
+    }
 
     if (isVisible || dimAlpha > 0.01f) {
         if (isVisible) {
@@ -791,7 +809,7 @@ private fun StickerPreviewOverlay(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            sticker?.let { currentSticker ->
+            lastActiveSticker?.let { currentSticker ->
                 val file = currentSticker.getInternalFile(context)
                 val fileSizeKb = if (file.exists()) file.length() / 1024 else 0
 
@@ -803,6 +821,7 @@ private fun StickerPreviewOverlay(
                             scaleY = contentScale
                             alpha = contentAlpha
                             translationY = offsetY
+                            rotationZ = rotation
                         }
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
@@ -949,29 +968,47 @@ private fun StickerPreviewOverlay(
                         
                         if (showEmojiDialog) {
                             var emojiInput by remember { mutableStateOf(currentSticker.emojis.joinToString("")) }
-                            AlertDialog(
+                            Dialog(
                                 onDismissRequest = { showEmojiDialog = false },
-                                title = { Text("Search Emojis") },
-                                text = {
-                                    OutlinedTextField(
-                                        value = emojiInput,
-                                        onValueChange = { emojiInput = it },
-                                        label = { Text("Up to 3 Emojis") },
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                },
-                                confirmButton = {
-                                    TextButton(onClick = {
-                                        val newEmojis = if (emojiInput.isNotBlank()) listOf(emojiInput.trim()) else emptyList()
-                                        onUpdateEmojis(currentSticker, newEmojis)
-                                        showEmojiDialog = false
-                                    }) { Text("Save") }
-                                },
-                                dismissButton = {
-                                    TextButton(onClick = { showEmojiDialog = false }) { Text("Cancel") }
+                                properties = DialogProperties(decorFitsSystemWindows = false)
+                            ) {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp)
+                                        .imePadding(),
+                                    shape = RoundedCornerShape(28.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(24.dp)
+                                    ) {
+                                        Text("Search Emojis", style = MaterialTheme.typography.titleLarge)
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        OutlinedTextField(
+                                            value = emojiInput,
+                                            onValueChange = { emojiInput = ImageUtils.filterEmojiInput(it) },
+                                            label = { Text("Up to 3 Emojis") },
+                                            singleLine = true,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        Spacer(modifier = Modifier.height(24.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.End
+                                        ) {
+                                            TextButton(onClick = { showEmojiDialog = false }) { Text("Cancel") }
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            TextButton(onClick = {
+                                                val newEmojis = ImageUtils.splitIntoEmojis(emojiInput)
+                                                onUpdateEmojis(currentSticker, newEmojis)
+                                                showEmojiDialog = false
+                                            }) { Text("Save") }
+                                        }
+                                    }
                                 }
-                            )
+                            }
                         }
                     }
                 }

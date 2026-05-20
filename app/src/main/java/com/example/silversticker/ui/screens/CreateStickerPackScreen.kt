@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -41,6 +42,8 @@ import coil.compose.AsyncImage
 import com.example.silversticker.models.Sticker
 import com.example.silversticker.models.StickerPack
 import com.example.silversticker.utils.ImageUtils
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.silversticker.utils.StickerStorage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
@@ -397,92 +400,97 @@ private fun CreateStickerGridItem(
 ) {
     val context = LocalContext.current
 
-    val isInitialItems = index < 12
-    var hasAnimated by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    var visible by remember { mutableStateOf(if (isInitialItems && !hasAnimated) false else true) }
+    var visible by rememberSaveable(key = sticker.imageFileName) { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     
     LaunchedEffect(Unit) {
-        if (isInitialItems && !hasAnimated) {
-            delay(index * 60L)
+        if (!visible) {
+            if (index < 12) {
+                delay(index * 60L)
+            }
             visible = true
-            hasAnimated = true
         }
     }
 
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(tween(300, easing = FastOutSlowInEasing)) + scaleIn(
-            initialScale = 0.3f,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioLowBouncy,
-                stiffness = Spring.StiffnessMediumLow
-            )
+    val scale by animateFloatAsState(
+        targetValue = if (visible) 1f else 0.3f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMediumLow
         ),
-        exit = fadeOut(tween(250)) + scaleOut(
-            targetScale = 0.1f,
-            animationSpec = tween(250)
-        )
-    ) {
-        Box(
-            modifier = Modifier.aspectRatio(1f)
-        ) {
-            Surface(
-                shape = MaterialTheme.shapes.medium,
-                tonalElevation = 2.dp,
-                modifier = Modifier.fillMaxSize()
-            ) {
-                AsyncImage(
-                    model = sticker.getInternalFile(context),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop
-                )
+        label = "grid_item_scale"
+    )
+    val alpha by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(250),
+        label = "grid_item_alpha"
+    )
+
+    Box(
+        modifier = Modifier
+            .aspectRatio(1f)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                this.alpha = alpha
             }
-            
-            // Display Emojis
-            if (sticker.emojis.isNotEmpty()) {
-                val emojiText = sticker.emojis.joinToString("")
-                if (emojiText.isNotBlank()) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(4.dp)
-                            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = emojiText,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White
-                        )
-                    }
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.medium,
+            tonalElevation = 2.dp,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            AsyncImage(
+                model = sticker.getInternalFile(context),
+                contentDescription = null,
+                contentScale = ContentScale.Crop
+            )
+        }
+        
+        // Display Emojis
+        if (sticker.emojis.isNotEmpty()) {
+            val emojiText = sticker.emojis.joinToString("")
+            if (emojiText.isNotBlank()) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(4.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = emojiText,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White
+                    )
                 }
             }
-            
-            // Remove Button
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(4.dp)
-                    .size(24.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.error)
-                    .clickable { 
-                        coroutineScope.launch {
-                            visible = false
-                            delay(250)
-                            onRemove()
-                        }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Default.Close,
-                    contentDescription = "Remove Sticker",
-                    tint = MaterialTheme.colorScheme.onError,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
+        }
+        
+        // Remove Button
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(4.dp)
+                .size(24.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.error)
+                .clickable { 
+                    coroutineScope.launch {
+                        visible = false
+                        delay(250)
+                        onRemove()
+                    }
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.Close,
+                contentDescription = "Remove Sticker",
+                tint = MaterialTheme.colorScheme.onError,
+                modifier = Modifier.size(16.dp)
+            )
+        }
             
             // Emoji Edit Button
             var showEmojiDialog by remember { mutableStateOf(false) }
@@ -506,29 +514,46 @@ private fun CreateStickerGridItem(
             
             if (showEmojiDialog) {
                 var emojiInput by remember { mutableStateOf(sticker.emojis.joinToString("")) }
-                AlertDialog(
+                Dialog(
                     onDismissRequest = { showEmojiDialog = false },
-                    title = { Text("Search Emojis") },
-                    text = {
-                        OutlinedTextField(
-                            value = emojiInput,
-                            onValueChange = { emojiInput = it },
-                            label = { Text("Up to 3 Emojis") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            val newEmojis = if (emojiInput.isNotBlank()) listOf(emojiInput.trim()) else emptyList()
-                            onUpdate(sticker.copy(emojis = newEmojis))
-                            showEmojiDialog = false
-                        }) { Text("Save") }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showEmojiDialog = false }) { Text("Cancel") }
+                    properties = DialogProperties(decorFitsSystemWindows = false)
+                ) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                            .imePadding(),
+                        shape = RoundedCornerShape(28.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            Text("Search Emojis", style = MaterialTheme.typography.titleLarge)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            OutlinedTextField(
+                                value = emojiInput,
+                                onValueChange = { emojiInput = ImageUtils.filterEmojiInput(it) },
+                                label = { Text("Up to 3 Emojis") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                TextButton(onClick = { showEmojiDialog = false }) { Text("Cancel") }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                TextButton(onClick = {
+                                    val newEmojis = ImageUtils.splitIntoEmojis(emojiInput)
+                                    onUpdate(sticker.copy(emojis = newEmojis))
+                                    showEmojiDialog = false
+                                }) { Text("Save") }
+                            }
+                        }
                     }
-                )
             }
         }
     }

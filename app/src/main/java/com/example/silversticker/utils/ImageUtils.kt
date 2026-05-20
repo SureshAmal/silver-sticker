@@ -174,4 +174,51 @@ object ImageUtils {
             null
         }
     }
+
+    /**
+     * Filters a string to only contain valid Unicode emojis and caps the length at 3 emojis.
+     */
+    fun filterEmojiInput(input: String): String {
+        val sb = StringBuilder()
+        var emojiCount = 0
+        var i = 0
+        while (i < input.length && emojiCount < 3) {
+            val codePoint = input.codePointAt(i)
+            val charCount = Character.charCount(codePoint)
+
+            // Standard Unicode ranges for emojis
+            val isEmoji = (codePoint in 0x1F300..0x1F9FF) ||
+                          (codePoint in 0x2600..0x27BF) ||
+                          (codePoint in 0x1F1E0..0x1F1FF) ||
+                          (codePoint in 0x1F000..0x1F0FF) ||
+                          (codePoint in 0x1F600..0x1F64F) ||
+                          (codePoint in 0x1F680..0x1F6FF) ||
+                          (codePoint in 0x1F200..0x1F2FF) ||
+                          (codePoint in 0x2300..0x23FF) ||
+                          (codePoint in 0x2B00..0x2BFF) ||
+                          (codePoint in 0xe0000..0xe007f)
+
+            if (isEmoji) {
+                sb.append(input.substring(i, i + charCount))
+                emojiCount++
+            }
+            i += charCount
+        }
+        return sb.toString()
+    }
+
+    /**
+     * Splits a string of emojis into individual emoji strings (handling surrogate pairs correctly).
+     */
+    fun splitIntoEmojis(input: String): List<String> {
+        val list = mutableListOf<String>()
+        var i = 0
+        while (i < input.length) {
+            val codePoint = input.codePointAt(i)
+            val charCount = Character.charCount(codePoint)
+            list.add(input.substring(i, i + charCount))
+            i += charCount
+        }
+        return list
+    }
 }

@@ -1,6 +1,7 @@
 package com.example.silversticker.utils
 
 import android.content.Context
+import android.net.Uri
 import android.util.Log
 import com.example.silversticker.models.StickerPack
 import com.google.gson.Gson
@@ -54,6 +55,10 @@ object StickerStorage {
             val json = gson.toJson(packs)
             file.writeText(json)
             Log.d(TAG, "Saved ${packs.size} packs to ${file.absolutePath}")
+            
+            // Notify WhatsApp and the system that sticker metadata has been updated
+            val authority = "${context.packageName}.sticker_provider"
+            context.contentResolver.notifyChange(Uri.parse("content://$authority/metadata"), null)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to save sticker packs", e)
         }
