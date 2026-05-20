@@ -93,6 +93,7 @@ fun StickerDetailsScreen(
     var editName by remember(pack.name) { mutableStateOf(pack.name) }
     var editPublisher by remember(pack.publisher) { mutableStateOf(pack.publisher) }
     var selectedNewTrayUri by remember { mutableStateOf<Uri?>(null) }
+    var isDestroyingPack by remember { mutableStateOf(false) }
 
     val trayPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -321,7 +322,11 @@ fun StickerDetailsScreen(
                 TextButton(
                     onClick = {
                         showDeleteDialog = false
-                        onDeletePackClick()
+                        isDestroyingPack = true
+                        coroutineScope.launch {
+                            delay(SilverMotion.Medium1.toLong())
+                            onDeletePackClick()
+                        }
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) { Text("Delete") }
@@ -363,6 +368,18 @@ fun StickerDetailsScreen(
         )
     }
 
+    AnimatedVisibility(
+        visible = !isDestroyingPack,
+        exit = fadeOut(SilverMotion.emphasizedExit(SilverMotion.Short4)) +
+                slideOutVertically(
+                    targetOffsetY = { it / 5 },
+                    animationSpec = SilverMotion.emphasizedExit(SilverMotion.Short4)
+                ) +
+                scaleOut(
+                    targetScale = 0.92f,
+                    animationSpec = SilverMotion.emphasizedExit(SilverMotion.Short4)
+                )
+    ) {
     Scaffold(
         topBar = {
             if (isSelectionMode) {
@@ -526,7 +543,7 @@ fun StickerDetailsScreen(
                     }
                 }
 
-                // Sticker grid with staggered entry
+                // Sticker grid stays virtualized; motion is limited to targeted micro-interactions.
                 itemsIndexed(
                     pack.stickers,
                     key = { _, sticker -> sticker.imageFileName }
@@ -534,6 +551,7 @@ fun StickerDetailsScreen(
                     val isSelected = selectedStickers.contains(sticker)
                     StickerGridItem(
                         sticker = sticker,
+                        modifier = Modifier.animateItem(),
                         isSelected = isSelected,
                         isSelectionMode = isSelectionMode,
                         onClick = {
@@ -571,6 +589,7 @@ fun StickerDetailsScreen(
             )
         }
     }
+    }
 }
 
 /**
@@ -579,6 +598,7 @@ fun StickerDetailsScreen(
 @Composable
 private fun StickerGridItem(
     sticker: Sticker,
+    modifier: Modifier = Modifier,
     isSelected: Boolean,
     isSelectionMode: Boolean,
     onClick: () -> Unit,
@@ -592,17 +612,45 @@ private fun StickerGridItem(
     // Press state
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f,
-        animationSpec = SilverMotion.quickSpring(),
+        targetValue = when {
+            isPressed -> 0.93f
+            isSelected -> 0.97f
+            else -> 1f
+        },
+        animationSpec = SilverMotion.pressSpring(),
         label = "press_scale"
+    )
+    val stickerScale by animateFloatAsState(
+        targetValue = if (isPressed) 1.05f else 1f,
+        animationSpec = SilverMotion.pressSpring(),
+        label = "sticker_inner_scale"
+    )
+    val containerColor by animateColorAsState(
+        targetValue = if (isSelected) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.surface
+        },
+        animationSpec = SilverMotion.standard(180),
+        label = "sticker_container"
+    )
+    val cornerRadius by animateDpAsState(
+        targetValue = when {
+            isPressed -> 18.dp
+            isSelected -> 20.dp
+            else -> 12.dp
+        },
+        animationSpec = SilverMotion.pressSpring(),
+        label = "sticker_shape"
     )
 
     Surface(
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(cornerRadius),
         tonalElevation = if (isPressed) 3.dp else 0.dp,
         shadowElevation = if (isPressed) 3.dp else 0.dp,
+        color = containerColor,
         border = if (isSelectionMode && isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
-        modifier = Modifier
+        modifier = modifier
             .aspectRatio(1f)
             .graphicsLayer {
                 scaleX = scale
@@ -627,6 +675,10 @@ private fun StickerGridItem(
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = stickerScale
+                        scaleY = stickerScale
+                    }
                     .padding(6.dp),
                 targetSizePx = 160
             )
@@ -650,10 +702,20 @@ private fun StickerGridItem(
                 }
             }
 
-            if (isSelectionMode) {
+            AnimatedVisibility(
+                visible = isSelectionMode,
+                enter = fadeIn(SilverMotion.standard(120)) + scaleIn(
+                    initialScale = 0.65f,
+                    animationSpec = SilverMotion.pressSpring()
+                ),
+                exit = fadeOut(SilverMotion.standard(90)) + scaleOut(
+                    targetScale = 0.65f,
+                    animationSpec = SilverMotion.quickSpring()
+                ),
+                modifier = Modifier.align(Alignment.TopEnd)
+            ) {
                 Box(
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
                         .padding(6.dp)
                         .size(22.dp)
                         .clip(CircleShape)
@@ -684,7 +746,7 @@ private fun StickerGridItem(
 
 /**
  * Telegram-style sticker preview overlay with morph scale, dim background,
- * slide-up spring animation, and subtle breathing effect on the sticker.
+ * and one-shot physics settling on the sticker.
  */
 @Composable
 private fun StickerPreviewOverlay(
@@ -696,31 +758,23 @@ private fun StickerPreviewOverlay(
     val context = LocalContext.current
     val isVisible = sticker != null
 
-    val dimAlpha by animateFloatAsState(
-        targetValue = if (isVisible) 1f else 0f,
-        animationSpec = SilverMotion.standard(260),
+    val previewTransition = updateTransition(targetState = isVisible, label = "preview")
+    val dimAlpha by previewTransition.animateFloat(
+        transitionSpec = { if (targetState) SilverMotion.standard(220) else SilverMotion.emphasizedExit(160) },
         label = "dim"
-    )
-    val contentScale by animateFloatAsState(
-        targetValue = if (isVisible) 1f else 0.96f,
-        animationSpec = SilverMotion.expressiveSpring(),
+    ) { visible -> if (visible) 1f else 0f }
+    val contentScale by previewTransition.animateFloat(
+        transitionSpec = { if (targetState) SilverMotion.spatialSpring() else SilverMotion.emphasizedExit(160) },
         label = "morph_scale"
-    )
-    val contentAlpha by animateFloatAsState(
-        targetValue = if (isVisible) 1f else 0f,
-        animationSpec = SilverMotion.standard(220),
+    ) { visible -> if (visible) 1f else 0.88f }
+    val contentAlpha by previewTransition.animateFloat(
+        transitionSpec = { if (targetState) SilverMotion.standard(160) else SilverMotion.emphasizedExit(120) },
         label = "morph_alpha"
-    )
-    val offsetY by animateFloatAsState(
-        targetValue = if (isVisible) 0f else 32f,
-        animationSpec = SilverMotion.emphasizedEnter(),
+    ) { visible -> if (visible) 1f else 0f }
+    val offsetY by previewTransition.animateFloat(
+        transitionSpec = { if (targetState) SilverMotion.spatialSpring() else SilverMotion.emphasizedExit(160) },
         label = "slide_y"
-    )
-    val rotation by animateFloatAsState(
-        targetValue = 0f,
-        animationSpec = SilverMotion.quickSpring(),
-        label = "morph_rotation"
-    )
+    ) { visible -> if (visible) 0f else 72f }
 
     var lastActiveSticker by remember { mutableStateOf<Sticker?>(null) }
     LaunchedEffect(sticker) {
@@ -748,6 +802,14 @@ private fun StickerPreviewOverlay(
             lastActiveSticker?.let { currentSticker ->
                 val file = currentSticker.getInternalFile(context)
                 val fileSizeKb = if (file.exists()) file.length() / 1024 else 0
+                val stickerPop = remember { Animatable(0.94f) }
+
+                LaunchedEffect(currentSticker.imageFileName, isVisible) {
+                    if (isVisible) {
+                        stickerPop.snapTo(0.94f)
+                        stickerPop.animateTo(1f, animationSpec = SilverMotion.spatialSpring())
+                    }
+                }
 
                 Surface(
                     modifier = Modifier
@@ -757,7 +819,6 @@ private fun StickerPreviewOverlay(
                             scaleY = contentScale
                             alpha = contentAlpha
                             translationY = offsetY
-                            rotationZ = rotation
                         }
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
@@ -792,6 +853,10 @@ private fun StickerPreviewOverlay(
                             contentScale = ContentScale.Fit,
                             modifier = Modifier
                                 .size(240.dp)
+                                .graphicsLayer {
+                                    scaleX = stickerPop.value
+                                    scaleY = stickerPop.value
+                                }
                                 .padding(16.dp)
                         )
 

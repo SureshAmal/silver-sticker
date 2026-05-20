@@ -8,14 +8,20 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,6 +44,8 @@ import android.net.Uri
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+private enum class PackViewMode { List, Grid }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StickerPackListScreen(
@@ -55,6 +63,7 @@ fun StickerPackListScreen(
     var selectedPackIds by remember { mutableStateOf(setOf<String>()) }
     var isSelectionMode by remember { mutableStateOf(false) }
     var deletingPackIds by remember { mutableStateOf(setOf<String>()) }
+    var viewMode by rememberSaveable { mutableStateOf(PackViewMode.List) }
 
     BackHandler(enabled = isSelectionMode) {
         selectedPackIds = emptySet()
@@ -112,6 +121,16 @@ fun StickerPackListScreen(
                 LargeTopAppBar(
                     title = { Text("Silver Sticker") },
                     actions = {
+                        IconButton(
+                            onClick = {
+                                viewMode = if (viewMode == PackViewMode.List) PackViewMode.Grid else PackViewMode.List
+                            }
+                        ) {
+                            Icon(
+                                if (viewMode == PackViewMode.List) Icons.Default.GridView else Icons.Default.ViewList,
+                                contentDescription = if (viewMode == PackViewMode.List) "Show as grid" else "Show as list"
+                            )
+                        }
                         IconButton(onClick = { importLauncher.launch("application/zip") }) {
                             Icon(
                                 Icons.Default.Download,
@@ -176,20 +195,9 @@ fun StickerPackListScreen(
                     )
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        val infiniteTransition = rememberInfiniteTransition(label = "empty")
-                        val floatOffset by infiniteTransition.animateFloat(
-                            initialValue = 0f,
-                            targetValue = 12f,
-                            animationSpec = infiniteRepeatable(
-                                animation = SilverMotion.standard(2200),
-                                repeatMode = RepeatMode.Reverse
-                            ),
-                            label = "float"
-                        )
                         Text(
                             text = "🎨",
-                            style = MaterialTheme.typography.displayLarge,
-                            modifier = Modifier.graphicsLayer { translationY = -floatOffset }
+                            style = MaterialTheme.typography.displayLarge
                         )
                         Spacer(Modifier.height(16.dp))
                         Text(
@@ -206,43 +214,76 @@ fun StickerPackListScreen(
                 }
             }
         } else {
-            LazyColumn(
+            AnimatedContent(
+                targetState = viewMode,
+                transitionSpec = {
+                    (fadeIn(SilverMotion.standardEnter(SilverMotion.Medium1)) +
+                            scaleIn(initialScale = 0.96f, animationSpec = SilverMotion.spatialSpring())) togetherWith
+                            (fadeOut(SilverMotion.standardExit(SilverMotion.Short4)) +
+                                    scaleOut(targetScale = 0.98f, animationSpec = SilverMotion.standardExit(SilverMotion.Short4)))
+                },
+                label = "pack_view_mode",
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .padding(padding)
             ) {
-                itemsIndexed(stickerPacks, key = { _, pack -> pack.identifier }) { index, pack ->
-                    val isSelected = selectedPackIds.contains(pack.identifier)
-                    val isDeleting = deletingPackIds.contains(pack.identifier)
+                val onItemClick: (StickerPack, Boolean) -> Unit = { pack, isSelected ->
+                    if (isSelectionMode) {
+                        selectedPackIds = if (isSelected) selectedPackIds - pack.identifier else selectedPackIds + pack.identifier
+                        if (selectedPackIds.isEmpty()) isSelectionMode = false
+                    } else {
+                        onPackClick(pack)
+                    }
+                }
+                val onItemLongClick: (StickerPack) -> Unit = { pack ->
+                    if (!isSelectionMode) {
+                        isSelectionMode = true
+                        selectedPackIds = setOf(pack.identifier)
+                    }
+                }
 
-                    StickerPackItem(
-                        pack = pack,
-                        isSelected = isSelected,
-                        isSelectionMode = isSelectionMode,
-                        isDeleting = isDeleting,
-                        onClick = {
-                            if (isSelectionMode) {
-                                selectedPackIds = if (isSelected) {
-                                    selectedPackIds - pack.identifier
-                                } else {
-                                    selectedPackIds + pack.identifier
-                                }
-                                if (selectedPackIds.isEmpty()) {
-                                    isSelectionMode = false
-                                }
-                            } else {
-                                onPackClick(pack)
-                            }
-                        },
-                        onLongClick = {
-                            if (!isSelectionMode) {
-                                isSelectionMode = true
-                                selectedPackIds = setOf(pack.identifier)
-                            }
+                if (it == PackViewMode.List) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(stickerPacks, key = { pack -> pack.identifier }) { pack ->
+                            val isSelected = selectedPackIds.contains(pack.identifier)
+                            StickerPackItem(
+                                pack = pack,
+                                modifier = Modifier.animateItem(),
+                                compact = false,
+                                isSelected = isSelected,
+                                isSelectionMode = isSelectionMode,
+                                isDeleting = deletingPackIds.contains(pack.identifier),
+                                onClick = { onItemClick(pack, isSelected) },
+                                onLongClick = { onItemLongClick(pack) }
+                            )
                         }
-                    )
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(156.dp),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        gridItems(stickerPacks, key = { pack -> pack.identifier }) { pack ->
+                            val isSelected = selectedPackIds.contains(pack.identifier)
+                            StickerPackItem(
+                                pack = pack,
+                                modifier = Modifier.animateItem(),
+                                compact = true,
+                                isSelected = isSelected,
+                                isSelectionMode = isSelectionMode,
+                                isDeleting = deletingPackIds.contains(pack.identifier),
+                                onClick = { onItemClick(pack, isSelected) },
+                                onLongClick = { onItemLongClick(pack) }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -252,6 +293,8 @@ fun StickerPackListScreen(
 @Composable
 fun StickerPackItem(
     pack: StickerPack,
+    modifier: Modifier = Modifier,
+    compact: Boolean,
     isSelected: Boolean,
     isSelectionMode: Boolean,
     isDeleting: Boolean,
@@ -267,21 +310,35 @@ fun StickerPackItem(
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         targetValue = when {
-            isPressed -> 0.97f
-            isSelected -> 0.99f
+            isPressed -> 0.965f
+            isSelected -> 0.985f
             else -> 1.0f
         },
-        animationSpec = SilverMotion.quickSpring(),
+        animationSpec = SilverMotion.pressSpring(),
         label = "pack_scale"
+    )
+    val trayScale by animateFloatAsState(
+        targetValue = if (isPressed) 1.08f else 1f,
+        animationSpec = SilverMotion.pressSpring(),
+        label = "pack_tray_scale"
     )
     val elevation by animateFloatAsState(
         targetValue = when {
-            isSelected -> 6f
-            isPressed -> 4f
+            isSelected -> 5f
+            isPressed -> 8f
             else -> 1f
         },
-        animationSpec = SilverMotion.standard(160),
+        animationSpec = SilverMotion.pressSpring(),
         label = "pack_elevation"
+    )
+    val cornerRadius by animateDpAsState(
+        targetValue = when {
+            isPressed -> 28.dp
+            isSelected -> 32.dp
+            else -> 20.dp
+        },
+        animationSpec = SilverMotion.pressSpring(),
+        label = "pack_shape"
     )
     val containerColor by animateColorAsState(
         targetValue = if (isSelected) {
@@ -295,15 +352,21 @@ fun StickerPackItem(
 
     AnimatedVisibility(
         visible = !isDeleting,
-        exit = fadeOut(SilverMotion.emphasizedExit()) +
-                scaleOut(
-                    targetScale = 0.92f,
-                    animationSpec = SilverMotion.emphasizedExit()
+        enter = fadeIn(SilverMotion.standardEnter(SilverMotion.Short4)) +
+                scaleIn(initialScale = 0.96f, animationSpec = SilverMotion.spatialSpring()),
+        exit = fadeOut(SilverMotion.emphasizedExit(SilverMotion.Short4)) +
+                slideOutHorizontally(
+                    targetOffsetX = { it / 3 },
+                    animationSpec = SilverMotion.emphasizedExit(SilverMotion.Short4)
                 ) +
-                shrinkVertically(animationSpec = SilverMotion.emphasizedExit(260))
+                scaleOut(
+                    targetScale = 0.86f,
+                    animationSpec = SilverMotion.emphasizedExit(SilverMotion.Short4)
+                ) +
+                shrinkVertically(animationSpec = SilverMotion.emphasizedExit(SilverMotion.Medium1))
     ) {
         ElevatedCard(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxWidth()
                 .graphicsLayer {
                     scaleX = scale
@@ -321,51 +384,111 @@ fun StickerPackItem(
                     )
                 },
             colors = CardDefaults.elevatedCardColors(containerColor = containerColor),
+            shape = RoundedCornerShape(cornerRadius),
             elevation = CardDefaults.elevatedCardElevation(defaultElevation = elevation.dp)
         ) {
-            Row(
-                modifier = Modifier
-                    .padding(16.dp)
-                    .fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val trayFile = pack.getTrayInternalFile(context)
-                StaticStickerImage(
-                    file = trayFile,
-                    contentDescription = null,
+            val trayFile = pack.getTrayInternalFile(context)
+            if (compact) {
+                Box(
                     modifier = Modifier
-                        .size(64.dp)
-                        .clip(MaterialTheme.shapes.medium)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentScale = ContentScale.Fit,
-                    targetSizePx = 96
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(text = pack.name, style = MaterialTheme.typography.titleLarge)
-                    Text(text = pack.publisher, style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        text = "${pack.stickers.size} stickers",
-                        style = MaterialTheme.typography.labelSmall
+                        .fillMaxWidth()
+                        .padding(14.dp)
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        StaticStickerImage(
+                            file = trayFile,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(88.dp)
+                                .graphicsLayer {
+                                    scaleX = trayScale
+                                    scaleY = trayScale
+                                }
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentScale = ContentScale.Fit,
+                            targetSizePx = 120
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(text = pack.name, style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                        Text(text = pack.publisher, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                        Text(
+                            text = "${pack.stickers.size} stickers",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    PackSelectionBadge(
+                        visible = isSelectionMode,
+                        selected = isSelected,
+                        modifier = Modifier.align(Alignment.TopEnd)
                     )
                 }
-
-                // Animated Selection Checkbox
-                AnimatedVisibility(
-                    visible = isSelectionMode,
-                    enter = fadeIn() + scaleIn(initialScale = 0.6f),
-                    exit = fadeOut() + scaleOut(targetScale = 0.6f)
+            } else {
+                Row(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Checkbox(
-                        checked = isSelected,
-                        onCheckedChange = null,
-                        colors = CheckboxDefaults.colors(
-                            checkedColor = MaterialTheme.colorScheme.primary,
-                            uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    StaticStickerImage(
+                        file = trayFile,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(64.dp)
+                            .graphicsLayer {
+                                scaleX = trayScale
+                                scaleY = trayScale
+                            }
+                            .clip(MaterialTheme.shapes.medium)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentScale = ContentScale.Fit,
+                        targetSizePx = 96
                     )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = pack.name, style = MaterialTheme.typography.titleLarge)
+                        Text(text = pack.publisher, style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            text = "${pack.stickers.size} stickers",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                    PackSelectionBadge(visible = isSelectionMode, selected = isSelected)
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PackSelectionBadge(
+    visible: Boolean,
+    selected: Boolean,
+    modifier: Modifier = Modifier
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(SilverMotion.standard(140)) + scaleIn(
+            initialScale = 0.7f,
+            animationSpec = SilverMotion.pressSpring()
+        ),
+        exit = fadeOut(SilverMotion.standard(100)) + scaleOut(
+            targetScale = 0.7f,
+            animationSpec = SilverMotion.quickSpring()
+        ),
+        modifier = modifier
+    ) {
+        Checkbox(
+            checked = selected,
+            onCheckedChange = null,
+            colors = CheckboxDefaults.colors(
+                checkedColor = MaterialTheme.colorScheme.primary,
+                uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        )
     }
 }

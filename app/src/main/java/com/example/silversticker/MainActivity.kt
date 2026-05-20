@@ -76,26 +76,26 @@ class MainActivity : ComponentActivity() {
                         enterTransition = {
                             slideIntoContainer(
                                 AnimatedContentTransitionScope.SlideDirection.Right,
-                                animationSpec = SilverMotion.emphasizedEnter()
-                            ) + fadeIn(animationSpec = SilverMotion.standard(260))
+                                animationSpec = SilverMotion.emphasizedEnter(SilverMotion.Long1)
+                            ) + fadeIn(animationSpec = SilverMotion.standardEnter(SilverMotion.Medium1))
                         },
                         exitTransition = {
                             slideOutOfContainer(
                                 AnimatedContentTransitionScope.SlideDirection.Left,
-                                animationSpec = SilverMotion.emphasizedExit()
-                            ) + fadeOut(animationSpec = SilverMotion.emphasizedExit())
+                                animationSpec = SilverMotion.emphasizedExit(SilverMotion.Short4)
+                            ) + fadeOut(animationSpec = SilverMotion.emphasizedExit(SilverMotion.Short4))
                         },
                         popEnterTransition = {
                             slideIntoContainer(
                                 AnimatedContentTransitionScope.SlideDirection.Right,
-                                animationSpec = SilverMotion.emphasizedEnter()
-                            ) + fadeIn(animationSpec = SilverMotion.standard(260))
+                                animationSpec = SilverMotion.emphasizedEnter(SilverMotion.Long1)
+                            ) + fadeIn(animationSpec = SilverMotion.standardEnter(SilverMotion.Medium1))
                         },
                         popExitTransition = {
                             slideOutOfContainer(
                                 AnimatedContentTransitionScope.SlideDirection.Left,
-                                animationSpec = SilverMotion.emphasizedExit()
-                            ) + fadeOut(animationSpec = SilverMotion.emphasizedExit())
+                                animationSpec = SilverMotion.emphasizedExit(SilverMotion.Short4)
+                            ) + fadeOut(animationSpec = SilverMotion.emphasizedExit(SilverMotion.Short4))
                         }
                     ) {
                         StickerPackListScreen(
@@ -147,26 +147,26 @@ class MainActivity : ComponentActivity() {
                         enterTransition = {
                             slideIntoContainer(
                                 AnimatedContentTransitionScope.SlideDirection.Up,
-                                animationSpec = SilverMotion.emphasizedEnter(560)
-                            ) + fadeIn(animationSpec = SilverMotion.standard(280))
+                                animationSpec = SilverMotion.emphasizedEnter(SilverMotion.Long2)
+                            ) + fadeIn(animationSpec = SilverMotion.standardEnter(SilverMotion.Medium2))
                         },
                         exitTransition = {
                             slideOutOfContainer(
                                 AnimatedContentTransitionScope.SlideDirection.Down,
-                                animationSpec = SilverMotion.emphasizedExit()
-                            ) + fadeOut(animationSpec = SilverMotion.emphasizedExit())
+                                animationSpec = SilverMotion.emphasizedExit(SilverMotion.Short4)
+                            ) + fadeOut(animationSpec = SilverMotion.emphasizedExit(SilverMotion.Short4))
                         },
                         popEnterTransition = {
                             slideIntoContainer(
                                 AnimatedContentTransitionScope.SlideDirection.Up,
-                                animationSpec = SilverMotion.emphasizedEnter(560)
-                            ) + fadeIn(animationSpec = SilverMotion.standard(280))
+                                animationSpec = SilverMotion.emphasizedEnter(SilverMotion.Long2)
+                            ) + fadeIn(animationSpec = SilverMotion.standardEnter(SilverMotion.Medium2))
                         },
                         popExitTransition = {
                             slideOutOfContainer(
                                 AnimatedContentTransitionScope.SlideDirection.Down,
-                                animationSpec = SilverMotion.emphasizedExit()
-                            ) + fadeOut(animationSpec = SilverMotion.emphasizedExit())
+                                animationSpec = SilverMotion.emphasizedExit(SilverMotion.Short4)
+                            ) + fadeOut(animationSpec = SilverMotion.emphasizedExit(SilverMotion.Short4))
                         }
                     ) {
                         CreateStickerPackScreen(
@@ -182,26 +182,26 @@ class MainActivity : ComponentActivity() {
                         enterTransition = {
                             slideIntoContainer(
                                 AnimatedContentTransitionScope.SlideDirection.Left,
-                                animationSpec = SilverMotion.emphasizedEnter()
-                            ) + fadeIn(animationSpec = SilverMotion.standard(260))
+                                animationSpec = SilverMotion.emphasizedEnter(SilverMotion.Long1)
+                            ) + fadeIn(animationSpec = SilverMotion.standardEnter(SilverMotion.Medium1))
                         },
                         exitTransition = {
                             slideOutOfContainer(
                                 AnimatedContentTransitionScope.SlideDirection.Right,
-                                animationSpec = SilverMotion.emphasizedExit()
-                            ) + fadeOut(animationSpec = SilverMotion.emphasizedExit())
+                                animationSpec = SilverMotion.emphasizedExit(SilverMotion.Short4)
+                            ) + fadeOut(animationSpec = SilverMotion.emphasizedExit(SilverMotion.Short4))
                         },
                         popEnterTransition = {
                             slideIntoContainer(
                                 AnimatedContentTransitionScope.SlideDirection.Left,
-                                animationSpec = SilverMotion.emphasizedEnter()
-                            ) + fadeIn(animationSpec = SilverMotion.standard(260))
+                                animationSpec = SilverMotion.emphasizedEnter(SilverMotion.Long1)
+                            ) + fadeIn(animationSpec = SilverMotion.standardEnter(SilverMotion.Medium1))
                         },
                         popExitTransition = {
                             slideOutOfContainer(
                                 AnimatedContentTransitionScope.SlideDirection.Right,
-                                animationSpec = SilverMotion.emphasizedExit()
-                            ) + fadeOut(animationSpec = SilverMotion.emphasizedExit())
+                                animationSpec = SilverMotion.emphasizedExit(SilverMotion.Short4)
+                            ) + fadeOut(animationSpec = SilverMotion.emphasizedExit(SilverMotion.Short4))
                         }
                     ) { backStackEntry ->
                         val packId = backStackEntry.arguments?.getString("packId")
