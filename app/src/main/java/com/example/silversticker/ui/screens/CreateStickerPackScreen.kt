@@ -28,19 +28,19 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.silversticker.models.Sticker
 import com.example.silversticker.models.StickerPack
+import com.example.silversticker.ui.components.StaticStickerImage
+import com.example.silversticker.ui.theme.SilverMotion
 import com.example.silversticker.utils.ImageUtils
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -246,9 +246,9 @@ fun CreateStickerPackScreen(
 
             AnimatedVisibility(
                 visible = fieldsVisible,
-                enter = fadeIn(tween(400)) + slideInVertically(
-                    initialOffsetY = { -it / 3 },
-                    animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy)
+                enter = fadeIn(SilverMotion.standard(260)) + slideInVertically(
+                    initialOffsetY = { -it / 5 },
+                    animationSpec = SilverMotion.expressiveSpring()
                 )
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -293,10 +293,7 @@ fun CreateStickerPackScreen(
                                 trayScale.snapTo(0.5f)
                                 trayScale.animateTo(
                                     1f,
-                                    animationSpec = spring(
-                                        dampingRatio = Spring.DampingRatioLowBouncy,
-                                        stiffness = Spring.StiffnessMediumLow
-                                    )
+                                    animationSpec = SilverMotion.expressiveSpring()
                                 )
                             }
                             AsyncImage(
@@ -368,8 +365,7 @@ fun CreateStickerPackScreen(
                     key = { _, sticker -> sticker.imageFileName }
                 ) { index, sticker ->
                     CreateStickerGridItem(
-                        sticker = sticker, 
-                        index = index,
+                        sticker = sticker,
                         onUpdate = { updatedSticker ->
                             val newList = selectedStickers.toMutableList()
                             val i = newList.indexOf(sticker)
@@ -389,61 +385,33 @@ fun CreateStickerPackScreen(
 }
 
 /**
- * Individual sticker item in the create screen grid with staggered bounce-in animation.
+ * Individual sticker item in the create screen grid.
  */
 @Composable
 private fun CreateStickerGridItem(
     sticker: Sticker,
-    index: Int,
     onUpdate: (Sticker) -> Unit,
     onRemove: () -> Unit
 ) {
     val context = LocalContext.current
 
-    var visible by rememberSaveable(key = sticker.imageFileName) { mutableStateOf(false) }
-    val coroutineScope = rememberCoroutineScope()
-    
-    LaunchedEffect(Unit) {
-        if (!visible) {
-            if (index < 12) {
-                delay(index * 60L)
-            }
-            visible = true
-        }
-    }
-
-    val scale by animateFloatAsState(
-        targetValue = if (visible) 1f else 0.3f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        ),
-        label = "grid_item_scale"
-    )
-    val alpha by animateFloatAsState(
-        targetValue = if (visible) 1f else 0f,
-        animationSpec = tween(250),
-        label = "grid_item_alpha"
-    )
-
     Box(
         modifier = Modifier
             .aspectRatio(1f)
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-                this.alpha = alpha
-            }
     ) {
         Surface(
             shape = MaterialTheme.shapes.medium,
             tonalElevation = 2.dp,
             modifier = Modifier.fillMaxSize()
         ) {
-            AsyncImage(
-                model = sticker.getInternalFile(context),
+            StaticStickerImage(
+                file = sticker.getInternalFile(context),
                 contentDescription = null,
-                contentScale = ContentScale.Crop
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(6.dp),
+                targetSizePx = 160
             )
         }
         
@@ -475,13 +443,7 @@ private fun CreateStickerGridItem(
                 .size(24.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.error)
-                .clickable { 
-                    coroutineScope.launch {
-                        visible = false
-                        delay(250)
-                        onRemove()
-                    }
-                },
+                .clickable { onRemove() },
             contentAlignment = Alignment.Center
         ) {
             Icon(

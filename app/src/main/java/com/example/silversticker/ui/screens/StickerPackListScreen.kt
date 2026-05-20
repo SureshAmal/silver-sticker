@@ -25,8 +25,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.example.silversticker.models.StickerPack
+import com.example.silversticker.ui.components.StaticStickerImage
+import com.example.silversticker.ui.theme.SilverMotion
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.filled.Download
@@ -169,9 +170,9 @@ fun StickerPackListScreen(
 
                 AnimatedVisibility(
                     visible = visible,
-                    enter = fadeIn(tween(600)) + scaleIn(
-                        initialScale = 0.8f,
-                        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy)
+                    enter = fadeIn(SilverMotion.standard(320)) + scaleIn(
+                        initialScale = 0.92f,
+                        animationSpec = SilverMotion.expressiveSpring()
                     )
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -180,7 +181,7 @@ fun StickerPackListScreen(
                             initialValue = 0f,
                             targetValue = 12f,
                             animationSpec = infiniteRepeatable(
-                                animation = tween(2000, easing = FastOutSlowInEasing),
+                                animation = SilverMotion.standard(2200),
                                 repeatMode = RepeatMode.Reverse
                             ),
                             label = "float"
@@ -218,7 +219,6 @@ fun StickerPackListScreen(
 
                     StickerPackItem(
                         pack = pack,
-                        index = index,
                         isSelected = isSelected,
                         isSelectionMode = isSelectionMode,
                         isDeleting = isDeleting,
@@ -252,7 +252,6 @@ fun StickerPackListScreen(
 @Composable
 fun StickerPackItem(
     pack: StickerPack,
-    index: Int,
     isSelected: Boolean,
     isSelectionMode: Boolean,
     isDeleting: Boolean,
@@ -261,71 +260,52 @@ fun StickerPackItem(
 ) {
     val context = LocalContext.current
 
-    val isInitialItems = index < 8
-    var hasAnimated by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    val animAlpha = remember { Animatable(if (isInitialItems && !hasAnimated) 0f else 1f) }
-    val animTranslationY = remember { Animatable(if (isInitialItems && !hasAnimated) 80f else 0f) }
-
-    LaunchedEffect(pack.identifier) {
-        if (isInitialItems && !hasAnimated) {
-            val delayTime = index * 60L
-            delay(delayTime)
-            launch {
-                animAlpha.animateTo(
-                    targetValue = 1f,
-                    animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing)
-                )
-            }
-            launch {
-                animTranslationY.animateTo(
-                    targetValue = 0f,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioLowBouncy,
-                        stiffness = Spring.StiffnessMediumLow
-                    )
-                )
-            }.join()
-            hasAnimated = true
-        }
-    }
-
     val currentOnClick by rememberUpdatedState(onClick)
     val currentOnLongClick by rememberUpdatedState(onLongClick)
 
     // Press animation state
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1.0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessHigh
-        ),
+        targetValue = when {
+            isPressed -> 0.97f
+            isSelected -> 0.99f
+            else -> 1.0f
+        },
+        animationSpec = SilverMotion.quickSpring(),
         label = "pack_scale"
     )
     val elevation by animateFloatAsState(
-        targetValue = if (isPressed) 8f else 1f,
-        animationSpec = tween(150),
+        targetValue = when {
+            isSelected -> 6f
+            isPressed -> 4f
+            else -> 1f
+        },
+        animationSpec = SilverMotion.standard(160),
         label = "pack_elevation"
+    )
+    val containerColor by animateColorAsState(
+        targetValue = if (isSelected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surface
+        },
+        animationSpec = SilverMotion.standard(220),
+        label = "pack_container"
     )
 
     AnimatedVisibility(
         visible = !isDeleting,
-        exit = fadeOut(tween(300)) +
+        exit = fadeOut(SilverMotion.emphasizedExit()) +
                 scaleOut(
-                    targetScale = 0.5f,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                        stiffness = Spring.StiffnessMedium
-                    )
+                    targetScale = 0.92f,
+                    animationSpec = SilverMotion.emphasizedExit()
                 ) +
-                shrinkVertically(animationSpec = tween(350))
+                shrinkVertically(animationSpec = SilverMotion.emphasizedExit(260))
     ) {
         ElevatedCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .graphicsLayer {
-                    alpha = animAlpha.value
-                    translationY = animTranslationY.value
                     scaleX = scale
                     scaleY = scale
                 }
@@ -340,6 +320,7 @@ fun StickerPackItem(
                         onLongPress = { currentOnLongClick() }
                     )
                 },
+            colors = CardDefaults.elevatedCardColors(containerColor = containerColor),
             elevation = CardDefaults.elevatedCardElevation(defaultElevation = elevation.dp)
         ) {
             Row(
@@ -349,14 +330,15 @@ fun StickerPackItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 val trayFile = pack.getTrayInternalFile(context)
-                AsyncImage(
-                    model = if (trayFile.exists()) trayFile else null,
+                StaticStickerImage(
+                    file = trayFile,
                     contentDescription = null,
                     modifier = Modifier
                         .size(64.dp)
                         .clip(MaterialTheme.shapes.medium)
                         .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentScale = ContentScale.Fit
+                    contentScale = ContentScale.Fit,
+                    targetSizePx = 96
                 )
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {

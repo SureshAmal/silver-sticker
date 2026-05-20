@@ -54,6 +54,8 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.silversticker.models.Sticker
 import com.example.silversticker.models.StickerPack
+import com.example.silversticker.ui.components.StaticStickerImage
+import com.example.silversticker.ui.theme.SilverMotion
 import com.example.silversticker.utils.ImageUtils
 import com.example.silversticker.utils.StickerStorage
 import androidx.compose.ui.window.Dialog
@@ -63,8 +65,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import java.util.UUID
-
-private val SineEasing = CubicBezierEasing(0.37f, 0f, 0.63f, 1f)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -234,11 +234,12 @@ fun StickerDetailsScreen(
                                     )
                                 } else {
                                     val trayFile = pack.getTrayInternalFile(context)
-                                    AsyncImage(
-                                        model = if (trayFile.exists()) trayFile else null,
+                                    StaticStickerImage(
+                                        file = trayFile,
                                         contentDescription = "Current Tray Icon",
                                         modifier = Modifier.fillMaxSize().padding(8.dp),
-                                        contentScale = ContentScale.Fit
+                                        contentScale = ContentScale.Fit,
+                                        targetSizePx = 96
                                     )
                                 }
                             }
@@ -405,14 +406,15 @@ fun StickerDetailsScreen(
                                 }
                         ) {
                             val trayFile = pack.getTrayInternalFile(context)
-                            AsyncImage(
-                                model = if (trayFile.exists()) trayFile else null,
+                            StaticStickerImage(
+                                file = trayFile,
                                 contentDescription = null,
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(MaterialTheme.colorScheme.surfaceVariant),
-                                contentScale = ContentScale.Fit
+                                contentScale = ContentScale.Fit,
+                                targetSizePx = 72
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
@@ -481,9 +483,9 @@ fun StickerDetailsScreen(
 
                     AnimatedVisibility(
                         visible = visible,
-                        enter = fadeIn(tween(500)) + slideInVertically(
-                            initialOffsetY = { -it / 2 },
-                            animationSpec = tween(500, easing = FastOutSlowInEasing)
+                        enter = fadeIn(SilverMotion.standard(260)) + slideInVertically(
+                            initialOffsetY = { -it / 5 },
+                            animationSpec = SilverMotion.emphasizedEnter()
                         )
                     ) {
                         Row(
@@ -497,26 +499,15 @@ fun StickerDetailsScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             val trayFile = pack.getTrayInternalFile(context)
-                            val infiniteTransition = rememberInfiniteTransition(label = "tray")
-                            val trayScale by infiniteTransition.animateFloat(
-                                initialValue = 1f,
-                                targetValue = 1.05f,
-                                animationSpec = infiniteRepeatable(
-                                    animation = tween(2000, easing = SineEasing),
-                                    repeatMode = RepeatMode.Reverse
-                                ),
-                                label = "tray_scale"
-                            )
-
-                            AsyncImage(
-                                model = if (trayFile.exists()) trayFile else null,
+                            StaticStickerImage(
+                                file = trayFile,
                                 contentDescription = null,
                                 modifier = Modifier
                                     .size(72.dp)
-                                    .scale(trayScale)
                                     .clip(RoundedCornerShape(16.dp))
                                     .background(MaterialTheme.colorScheme.surfaceVariant),
-                                contentScale = ContentScale.Fit
+                                contentScale = ContentScale.Fit,
+                                targetSizePx = 120
                             )
                             Spacer(modifier = Modifier.width(16.dp))
                             Column {
@@ -543,7 +534,6 @@ fun StickerDetailsScreen(
                     val isSelected = selectedStickers.contains(sticker)
                     StickerGridItem(
                         sticker = sticker,
-                        index = index,
                         isSelected = isSelected,
                         isSelectionMode = isSelectionMode,
                         onClick = {
@@ -584,12 +574,11 @@ fun StickerDetailsScreen(
 }
 
 /**
- * Individual sticker grid item with staggered cascade entry and bouncy press animation.
+ * Individual sticker grid item optimized for smooth scrolling.
  */
 @Composable
 private fun StickerGridItem(
     sticker: Sticker,
-    index: Int,
     isSelected: Boolean,
     isSelectionMode: Boolean,
     onClick: () -> Unit,
@@ -597,139 +586,95 @@ private fun StickerGridItem(
 ) {
     val context = LocalContext.current
 
-    // Staggered entry (Only apply to initial grid items to prevent scrolling bottlenecks)
-    var visible by remember { mutableStateOf(index >= 12) }
-    LaunchedEffect(Unit) {
-        if (index < 12) {
-            delay(index * 40L)
-            visible = true
-        }
-    }
-
     val currentOnClick by rememberUpdatedState(onClick)
     val currentOnLongClick by rememberUpdatedState(onLongClick)
 
     // Press state
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.82f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessHigh
-        ),
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = SilverMotion.quickSpring(),
         label = "press_scale"
     )
-    val rotation by animateFloatAsState(
-        targetValue = if (isPressed) -2f else 0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
-        label = "press_rotation"
-    )
-    val elevation by animateFloatAsState(
-        targetValue = if (isPressed) 12f else 0f,
-        animationSpec = tween(150),
-        label = "press_elevation"
-    )
 
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(tween(350, easing = FastOutSlowInEasing)) + scaleIn(
-            initialScale = 0.4f,
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioLowBouncy,
-                stiffness = Spring.StiffnessMediumLow
-            )
-        )
-    ) {
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            tonalElevation = elevation.dp,
-            shadowElevation = elevation.dp,
-            border = if (isSelectionMode && isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
-            modifier = Modifier
-                .aspectRatio(1f)
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                    rotationZ = rotation
-                }
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onPress = {
-                            isPressed = true
-                            tryAwaitRelease()
-                            isPressed = false
-                        },
-                        onTap = { currentOnClick() },
-                        onLongPress = { currentOnLongClick() }
-                    )
-                }
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                AsyncImage(
-                    model = sticker.getInternalFile(context),
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(6.dp)
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        tonalElevation = if (isPressed) 3.dp else 0.dp,
+        shadowElevation = if (isPressed) 3.dp else 0.dp,
+        border = if (isSelectionMode && isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+        modifier = Modifier
+            .aspectRatio(1f)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        isPressed = true
+                        tryAwaitRelease()
+                        isPressed = false
+                    },
+                    onTap = { currentOnClick() },
+                    onLongPress = { currentOnLongClick() }
                 )
-                
-                // Display Emojis Badge
-                if (sticker.emojis.isNotEmpty()) {
-                    val emojiText = sticker.emojis.joinToString("")
-                    if (emojiText.isNotBlank()) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomStart)
-                                .padding(4.dp)
-                                .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
-                                .padding(horizontal = 4.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = emojiText,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = androidx.compose.ui.graphics.Color.White
-                            )
-                        }
-                    }
-                }
+            }
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            StaticStickerImage(
+                file = sticker.getInternalFile(context),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(6.dp),
+                targetSizePx = 160
+            )
 
-                // Circular Selection Badge overlay
-                AnimatedVisibility(
-                    visible = isSelectionMode,
-                    enter = fadeIn() + scaleIn(initialScale = 0.5f),
-                    exit = fadeOut() + scaleOut(targetScale = 0.5f),
-                    modifier = Modifier.align(Alignment.TopEnd)
-                ) {
+            if (sticker.emojis.isNotEmpty()) {
+                val emojiText = sticker.emojis.joinToString("")
+                if (emojiText.isNotBlank()) {
                     Box(
                         modifier = Modifier
-                            .padding(6.dp)
-                            .size(22.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (isSelected) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)
-                            )
-                            .border(
-                                1.5.dp,
-                                if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
+                            .align(Alignment.BottomStart)
+                            .padding(4.dp)
+                            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
                     ) {
-                        if (isSelected) {
-                            Icon(
-                                Icons.Default.Check,
-                                contentDescription = "Selected",
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
+                        Text(
+                            text = emojiText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+
+            if (isSelectionMode) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isSelected) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)
+                        )
+                        .border(
+                            1.5.dp,
+                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                            CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isSelected) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "Selected",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(14.dp)
+                        )
                     }
                 }
             }
@@ -753,36 +698,27 @@ private fun StickerPreviewOverlay(
 
     val dimAlpha by animateFloatAsState(
         targetValue = if (isVisible) 1f else 0f,
-        animationSpec = tween(300, easing = FastOutSlowInEasing),
+        animationSpec = SilverMotion.standard(260),
         label = "dim"
     )
     val contentScale by animateFloatAsState(
-        targetValue = if (isVisible) 1f else 0.3f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        ),
+        targetValue = if (isVisible) 1f else 0.96f,
+        animationSpec = SilverMotion.expressiveSpring(),
         label = "morph_scale"
     )
     val contentAlpha by animateFloatAsState(
         targetValue = if (isVisible) 1f else 0f,
-        animationSpec = tween(250),
+        animationSpec = SilverMotion.standard(220),
         label = "morph_alpha"
     )
     val offsetY by animateFloatAsState(
-        targetValue = if (isVisible) 0f else 120f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        ),
+        targetValue = if (isVisible) 0f else 32f,
+        animationSpec = SilverMotion.emphasizedEnter(),
         label = "slide_y"
     )
     val rotation by animateFloatAsState(
-        targetValue = if (isVisible) 0f else -30f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        ),
+        targetValue = 0f,
+        animationSpec = SilverMotion.quickSpring(),
         label = "morph_rotation"
     )
 
@@ -850,25 +786,12 @@ private fun StickerPreviewOverlay(
                             }
                         }
 
-                        // Breathing animation on preview
-                        val breathTransition = rememberInfiniteTransition(label = "breath")
-                        val breathScale by breathTransition.animateFloat(
-                            initialValue = 1f,
-                            targetValue = 1.03f,
-                            animationSpec = infiniteRepeatable(
-                                animation = tween(3000, easing = SineEasing),
-                                repeatMode = RepeatMode.Reverse
-                            ),
-                            label = "breath_scale"
-                        )
-
                         AsyncImage(
                             model = file,
                             contentDescription = null,
                             contentScale = ContentScale.Fit,
                             modifier = Modifier
                                 .size(240.dp)
-                                .scale(breathScale)
                                 .padding(16.dp)
                         )
 
