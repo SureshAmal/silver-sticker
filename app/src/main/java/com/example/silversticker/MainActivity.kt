@@ -12,6 +12,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -57,11 +61,14 @@ class MainActivity : ComponentActivity() {
                 val stickerPacks by viewModel.stickerPacks.collectAsState()
                 val targetPackage by viewModel.targetPackage.collectAsState()
                 val context = LocalContext.current
+                var isAddingToWhatsApp by remember { mutableStateOf(false) }
+                var lastWhatsAppLaunchAt by remember { mutableLongStateOf(0L) }
 
                 val addToWhatsAppLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.StartActivityForResult()
                 ) { result ->
                     android.util.Log.d("MainActivity", "WhatsApp result: ${result.resultCode}")
+                    isAddingToWhatsApp = false
                 }
 
                 NavHost(
@@ -209,11 +216,24 @@ class MainActivity : ComponentActivity() {
                         if (pack != null) {
                             StickerDetailsScreen(
                                 pack = pack,
+                                isAddingToWhatsApp = isAddingToWhatsApp,
                                 onBackClick = { navController.popBackStack() },
                                 onAddToWhatsAppClick = {
-                                    val intent = WhatsAppUtil.createAddStickerPackIntent(context, pack, targetPackage)
-                                    if (intent != null) {
-                                        addToWhatsAppLauncher.launch(intent)
+                                    val now = android.os.SystemClock.elapsedRealtime()
+                                    if (!isAddingToWhatsApp && now - lastWhatsAppLaunchAt >= 1500L) {
+                                        isAddingToWhatsApp = true
+                                        lastWhatsAppLaunchAt = now
+                                        val intent = WhatsAppUtil.createAddStickerPackIntent(context, pack, targetPackage)
+                                        if (intent != null) {
+                                            try {
+                                                addToWhatsAppLauncher.launch(intent)
+                                            } catch (e: Exception) {
+                                                isAddingToWhatsApp = false
+                                                android.widget.Toast.makeText(context, "Failed to open WhatsApp", android.widget.Toast.LENGTH_SHORT).show()
+                                            }
+                                        } else {
+                                            isAddingToWhatsApp = false
+                                        }
                                     }
                                 },
                                 onDeletePackClick = {

@@ -70,6 +70,7 @@ import java.util.UUID
 @Composable
 fun StickerDetailsScreen(
     pack: StickerPack,
+    isAddingToWhatsApp: Boolean = false,
     onBackClick: () -> Unit,
     onAddToWhatsAppClick: () -> Unit,
     onDeletePackClick: () -> Unit,
@@ -471,13 +472,35 @@ fun StickerDetailsScreen(
             Surface(tonalElevation = 8.dp) {
                 Button(
                     onClick = onAddToWhatsAppClick,
+                    enabled = !isAddingToWhatsApp,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp)
                         .height(56.dp),
                     shape = RoundedCornerShape(16.dp)
                 ) {
-                    Text("ADD TO WHATSAPP", fontWeight = FontWeight.Bold)
+                    AnimatedContent(
+                        targetState = isAddingToWhatsApp,
+                        transitionSpec = {
+                            fadeIn(SilverMotion.standardEnter(SilverMotion.Short3)) togetherWith
+                                    fadeOut(SilverMotion.standardExit(SilverMotion.Short2))
+                        },
+                        label = "add_to_whatsapp_state"
+                    ) { adding ->
+                        if (adding) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Text("OPENING WHATSAPP", fontWeight = FontWeight.Bold)
+                            }
+                        } else {
+                            Text("ADD TO WHATSAPP", fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }
